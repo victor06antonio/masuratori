@@ -1,0 +1,745 @@
+<!doctype html>
+<html lang="ro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1D2830">
+<title>Măsurători</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<style>
+:root{
+  --bg:#E9EDEA;--surface:#F8FAF8;--ink:#1D2830;--muted:#56636B;--line:#C6CFCA;
+  --accent:#145E7A;--accent-ink:#FFFFFF;
+  --wait:#8A5208;--wait-bg:#F5E5C2;--ok:#24603C;--ok-bg:#D6EADB;
+  --err:#9C2E26;--err-bg:#F3D8D3;--sync:#0F4F68;--sync-bg:#D0E5EE;--idle:#1D2830;--idle-bg:#DDE3DF;
+  --sw-alb:#F4F4F1;--sw-maro:#5A3B26;--sw-antracit:#383E42;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#141B20;--surface:#1D262D;--ink:#E3E9EC;--muted:#9BA8AF;--line:#34424C;
+  --accent:#6CB7D3;--accent-ink:#0D1A20;
+  --wait:#EBB766;--wait-bg:#3A2C12;--ok:#86CC9F;--ok-bg:#16301F;
+  --err:#F08D83;--err-bg:#3B1C19;--sync:#8CCAE2;--sync-bg:#14303B;--idle:#E3E9EC;--idle-bg:#1F2930;
+  color-scheme:dark;
+}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif}
+button{font:inherit;cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.status{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:14px;
+  padding:calc(env(safe-area-inset-top,0px) + 16px) 18px 16px;background:var(--st-bg);color:var(--st-ink);transition:background .3s,color .3s}
+.status[data-tone=idle]{--st-bg:var(--idle-bg);--st-ink:var(--idle)}
+.status[data-tone=wait]{--st-bg:var(--wait-bg);--st-ink:var(--wait)}
+.status[data-tone=sync]{--st-bg:var(--sync-bg);--st-ink:var(--sync)}
+.status[data-tone=ok]{--st-bg:var(--ok-bg);--st-ink:var(--ok)}
+.status[data-tone=err]{--st-bg:var(--err-bg);--st-ink:var(--err)}
+.status-text{flex:1;min-width:0}
+.big{font-size:1.4rem;font-weight:750;line-height:1.15}
+.small{font-size:.9rem;margin-top:2px}
+.net{display:inline-block;font-size:.8rem;font-weight:650;padding:1px 8px;border-radius:99px;border:1.5px solid currentColor;margin-left:6px;vertical-align:1px}
+.status button{flex:none;background:var(--st-ink);color:var(--st-bg);border:0;border-radius:10px;padding:10px 14px;font-weight:700}
+
+main{max-width:640px;margin:0 auto;padding:20px 18px calc(110px + env(safe-area-inset-bottom,0px))}
+h2{font-size:1.15rem;margin:28px 0 12px}
+h2:first-child{margin-top:0}
+p.hint{color:var(--muted);font-size:.9rem;margin:-4px 0 14px}
+
+label.f{display:block;margin-bottom:12px}
+.lbl{display:block;font-size:.875rem;font-weight:650;color:var(--muted);margin-bottom:5px}
+input,select,textarea{width:100%;font:inherit;font-size:16px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px}
+textarea{min-height:80px;resize:vertical}
+label.check{display:flex;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:14px;font-weight:550}
+label.check input{width:22px;height:22px;margin:0;accent-color:var(--accent)}
+
+/* Choice buttons */
+.seg{display:flex;gap:6px;margin-bottom:16px}
+.seg button{flex:1;border:1.5px solid var(--line);background:var(--surface);color:var(--ink);padding:12px 6px;border-radius:10px;font-weight:650;display:flex;align-items:center;justify-content:center;gap:8px}
+.seg button[aria-pressed=true]{border-color:var(--ink);background:var(--ink);color:var(--bg)}
+.seg button[aria-pressed=true] .sw{border:1.5px solid var(--bg)}
+.seg.grid2{display:grid;grid-template-columns:1fr 1fr}
+.seg button:disabled{opacity:.45;cursor:default}
+.seg small{font-weight:500;font-size:.75rem}
+.sw{width:16px;height:16px;border-radius:50%;border:1px solid var(--muted);flex:none}
+.locked{display:flex;align-items:center;gap:10px;padding:12px;border:1.5px dashed var(--line);border-radius:10px;margin-bottom:16px;color:var(--muted)}
+.locked b{color:var(--ink)}
+
+/* The measuring card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:18px}
+.card .card-h{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.card .card-h h2{margin:0}
+.dims{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:end;margin-bottom:16px}
+.dims input{font-size:1.6rem;font-weight:700;text-align:center;padding:12px 6px;font-variant-numeric:tabular-nums;background:var(--bg)}
+.dims .x{font-size:1.6rem;font-weight:300;color:var(--muted);padding-bottom:12px}
+.dims .lbl{text-align:center}
+
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:11px 16px;font-weight:650}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.danger{color:var(--err)}
+.btn.small{padding:7px 12px;font-size:.9rem}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grow{flex:1}
+.editing{background:var(--sync-bg);color:var(--sync);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:.9rem;font-weight:600}
+.empty{color:var(--muted);background:var(--surface);border:1px dashed var(--line);border-radius:12px;padding:16px;margin:0 0 18px}
+
+/* Positions */
+.pos{display:flex;gap:12px;align-items:flex-start;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-bottom:8px}
+.pos[data-editing=true]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.pos .n{font-weight:750;color:var(--muted);font-variant-numeric:tabular-nums;font-size:1.2rem}
+.pos .body{flex:1;min-width:0}
+.pos .d{font-size:1.2rem;font-weight:750;font-variant-numeric:tabular-nums}
+.pos .m{color:var(--muted);font-size:.9rem;display:flex;align-items:center;gap:6px}
+.pos .acts{display:flex;gap:6px;margin-top:8px}
+
+/* Saved list */
+.item{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--line);border-radius:10px;margin-bottom:10px}
+.item[data-status=pending]{border-left-color:var(--wait)}
+.item[data-status=error]{border-left-color:var(--err)}
+.item[data-status=uploaded]{border-left-color:var(--ok)}
+.item summary{list-style:none;display:flex;gap:10px;align-items:center;padding:12px 14px;cursor:pointer}
+.item summary::-webkit-details-marker{display:none}
+.item .t{flex:1;min-width:0}
+.item .t b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .t small{color:var(--muted)}
+.badge{flex:none;font-size:.8rem;font-weight:700;padding:2px 9px;border-radius:99px}
+[data-status=pending] .badge{background:var(--wait-bg);color:var(--wait)}
+[data-status=error] .badge{background:var(--err-bg);color:var(--err)}
+[data-status=uploaded] .badge{background:var(--ok-bg);color:var(--ok)}
+.item .inner{padding:0 14px 14px}
+.item pre{white-space:pre-wrap;word-break:break-word;font:inherit;font-size:.95rem;margin:0 0 12px;padding:12px;background:var(--bg);border-radius:8px;max-height:340px;overflow:auto}
+.item .errmsg{color:var(--err);font-size:.9rem;margin:0 0 10px}
+
+.tabs{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;background:var(--surface);border-top:1px solid var(--line);padding-bottom:env(safe-area-inset-bottom,0px)}
+.tabs button{flex:1;border:0;background:none;color:var(--muted);padding:13px 0 15px;font-weight:650}
+.tabs button[aria-selected=true]{color:var(--accent);box-shadow:inset 0 3px 0 var(--accent)}
+#toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translate(-50%,12px);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-weight:600;font-size:.95rem;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;max-width:90vw;z-index:9;text-align:center}
+#toast.on{opacity:1;transform:translate(-50%,0)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="status" id="status" data-tone="idle" aria-live="polite">
+  <div class="status-text">
+    <div class="big" id="stBig">Gata</div>
+    <div class="small"><span id="stSmall"></span><span class="net" id="stNet"></span></div>
+  </div>
+  <button id="stBtn" hidden></button>
+</header>
+
+<main>
+  <!-- MĂSURARE -->
+  <section id="view-write">
+    <div class="editing" id="editingNote" hidden>Editezi o fișă salvată. După salvare, va fi încărcată din nou ca fișier nou.</div>
+
+    <h2>Client</h2>
+    <label class="f"><span class="lbl">Nume</span><input id="cNume" autocomplete="off"></label>
+    <div class="row">
+      <label class="f grow"><span class="lbl">Telefon</span><input id="cTel" type="tel" autocomplete="off"></label>
+    </div>
+    <label class="f"><span class="lbl">Adresă</span><input id="cAdresa" autocomplete="off"></label>
+
+    <h2 id="posTitle">Poziții</h2>
+    <div id="positions"></div>
+
+    <div class="card" id="itemCard">
+      <div class="card-h"><h2 id="itemTitle">Poziție nouă</h2></div>
+      <span class="lbl">Produs</span>
+      <div class="seg" id="segProdus"></div>
+      <div id="boxMaterial"><span class="lbl">Material</span><div class="seg" id="segMaterial"></div></div>
+      <div id="boxModel"><span class="lbl">Model</span><div class="seg grid2" id="segModel"></div></div>
+      <span class="lbl">Culoare</span>
+      <div id="culoareBox"></div>
+      <div id="boxDimTip"><span class="lbl">Dimensiune măsurată</span><div class="seg" id="segDimTip"></div></div>
+      <div class="dims">
+        <label><span class="lbl">Lățime (mm)</span><input id="latime" inputmode="numeric" autocomplete="off" enterkeyhint="next" placeholder="0"></label>
+        <span class="x" aria-hidden="true">×</span>
+        <label><span class="lbl">Înălțime (mm)</span><input id="inaltime" inputmode="numeric" autocomplete="off" enterkeyhint="done" placeholder="0"></label>
+      </div>
+      <div id="boxActionare"><span class="lbl">Acționare</span><div class="seg" id="segActionare"></div></div>
+      <div class="row">
+        <button class="btn primary grow" id="addItem">Adaugă poziția</button>
+        <button class="btn" id="cancelItem" hidden>Renunță</button>
+      </div>
+    </div>
+
+    <label class="f"><span class="lbl">Observații</span><textarea id="obs"></textarea></label>
+    <div class="row">
+      <button class="btn primary grow" id="saveSheet">Salvează fișa</button>
+      <button class="btn" id="resetSheet">Fișă nouă</button>
+    </div>
+  </section>
+
+  <!-- SALVATE -->
+  <section id="view-saved" hidden>
+    <div class="row" style="margin-bottom:14px">
+      <h2 class="grow" style="margin:0">Fișe salvate pe telefon</h2>
+      <button class="btn small" id="clearUploaded" hidden>Șterge încărcatele</button>
+    </div>
+    <div id="list"></div>
+  </section>
+
+  <!-- SETĂRI -->
+  <section id="view-settings" hidden>
+    <h2>Google Drive</h2>
+    <p class="hint" id="acctText"></p>
+    <label class="f"><span class="lbl">Client ID Google</span>
+      <input id="clientId" autocomplete="off" spellcheck="false" placeholder="1234…apps.googleusercontent.com"></label>
+    <div class="row" style="margin-bottom:18px">
+      <button class="btn primary" id="signInBtn">Conectare la Google</button>
+      <button class="btn" id="signOutBtn" hidden>Deconectare</button>
+    </div>
+    <label class="f"><span class="lbl">Folder în Drive</span><input id="folderPath" autocomplete="off" placeholder="Masuratori"></label>
+    <p class="hint">Folosește / pentru subfoldere, de exemplu Firma/Masuratori. Aplicația creează folderele în Drive.</p>
+    <label class="check"><input type="checkbox" id="wifiOnly"> Încarcă doar pe Wi‑Fi</label>
+    <label class="f"><span class="lbl">Tip fișier</span>
+      <select id="format">
+        <option value="txt">Text (.txt)</option>
+        <option value="csv">Tabel pentru Excel (.csv)</option>
+        <option value="json">JSON (.json)</option>
+      </select></label>
+
+    <h2>Copie de siguranță</h2>
+    <p class="hint">Descarcă toate fișele de pe telefon într-un singur fișier.</p>
+    <button class="btn" id="backupBtn">Descarcă copia</button>
+  </section>
+</main>
+
+<nav class="tabs" role="tablist">
+  <button id="tab-write" role="tab" aria-selected="true">Măsurare</button>
+  <button id="tab-saved" role="tab" aria-selected="false">Salvate</button>
+  <button id="tab-settings" role="tab" aria-selected="false">Setări</button>
+</nav>
+<div id="toast" role="status"></div>
+
+<script>
+'use strict';
+const $ = (s) => document.querySelector(s);
+const el = (tag, props = {}, ...kids) => {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'class') n.className = v;
+    else if (k.startsWith('on')) n.addEventListener(k.slice(2), v);
+    else if (k in n) n[k] = v; else n.setAttribute(k, v);
+  }
+  for (const c of kids) if (c != null) n.append(c);
+  return n;
+};
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+
+/* ================= Products =================
+   To add a product later, add it here and give it its own rules. */
+const CULORI = ['Alb', 'Maro', 'Antracit'];
+const PRODUSE = {
+  rulou: {
+    nume: 'Rolete', singular: 'Rulou',
+    materiale: {
+      PVC: { nume: 'PVC', culori: ['Alb'] },            // PVC is only white
+      AL:  { nume: 'Aluminiu', culori: CULORI }
+    }
+  },
+  plasa: {
+    nume: 'Plase', singular: 'Plasă',
+    modele: { ISO: 'ISO', mobila: 'Mobilă', plisee: 'Plisee', culisanta: 'Culisantă' },
+    culori: CULORI
+  }
+};
+const DIM_TIP = ['Interior', 'Exterior'];
+function culoriFor(it) {
+  if (it.produs === 'rulou') return it.material ? PRODUSE.rulou.materiale[it.material].culori : null;
+  return PRODUSE[it.produs].culori;
+}
+function numeProdus(it) {
+  if (it.produs === 'rulou') return 'Rulou ' + PRODUSE.rulou.materiale[it.material].nume;
+  const m = PRODUSE.plasa.modele[it.model];
+  return 'Plasă ' + (it.model === 'ISO' ? m : m.toLowerCase());
+}
+const detalii = (it) => it.produs === 'rulou' ? `acționare ${it.actionare.toLowerCase()}` : `dimensiune ${it.dimTip.toLowerCase()}`;
+const describe = (it) => `${numeProdus(it)}, ${it.culoare.toLowerCase()}, ${it.latime} × ${it.inaltime} mm, ${detalii(it)}`;
+const CULOARE_SW = { Alb: 'var(--sw-alb)', Maro: 'var(--sw-maro)', Antracit: 'var(--sw-antracit)' };
+const ACTIONARI = ['Stânga', 'Dreapta'];
+
+/* ================= Storage ================= */
+let dbp;
+function db() {
+  if (!dbp) dbp = new Promise((res, rej) => {
+    const r = indexedDB.open('masuratori', 1);
+    r.onupgradeneeded = () => { r.result.createObjectStore('entries', { keyPath: 'id' }); r.result.createObjectStore('kv'); };
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+  return dbp;
+}
+async function tx(store, mode, fn) {
+  const d = await db();
+  return new Promise((res, rej) => {
+    const t = d.transaction(store, mode); const r = fn(t.objectStore(store));
+    t.oncomplete = () => res(r ? r.result : undefined); t.onerror = () => rej(t.error);
+  });
+}
+const allEntries = () => tx('entries', 'readonly', (s) => s.getAll());
+const putEntry = (e) => tx('entries', 'readwrite', (s) => s.put(e));
+const delEntry = (id) => tx('entries', 'readwrite', (s) => s.delete(id));
+const kvGet = (k) => tx('kv', 'readonly', (s) => s.get(k));
+const kvSet = (k, v) => tx('kv', 'readwrite', (s) => s.put(v, k));
+
+/* ================= State ================= */
+const DEFAULTS = { clientId: '', folderPath: 'Masuratori', wifiOnly: true, format: 'txt', folderCache: {}, signedInOnce: false };
+let settings = structuredClone(DEFAULTS);
+let entries = [];
+const newSheet = () => ({ id: null, createdAt: null, client: { nume: '', telefon: '', adresa: '' }, items: [], obs: '' });
+const newItem = (keep) => ({ produs: keep?.produs || 'rulou', material: keep?.material || null, model: keep?.model || null,
+  culoare: keep?.culoare || null, dimTip: keep?.dimTip || null, latime: '', inaltime: '', actionare: null, editIndex: null });
+let sheet = newSheet(), item = newItem();
+let syncing = false, accessToken = null, tokenExpiry = 0, tokenClient = null, gisPromise = null;
+
+const saveSettings = () => kvSet('settings', settings);
+let draftTimer;
+const saveDraft = () => { clearTimeout(draftTimer); draftTimer = setTimeout(() => kvSet('draft', { sheet, item }), 250); };
+const hasToken = () => !!accessToken && Date.now() < tokenExpiry;
+const waitingEntries = () => entries.filter((e) => e.status !== 'uploaded');
+const fise = (n) => n === 1 ? '1 fișă' : (n % 100 >= 1 && n % 100 <= 19) ? `${n} fișe` : `${n} de fișe`;
+const fmtDate = (ts) => new Date(ts).toLocaleString('ro-RO', { dateStyle: 'medium', timeStyle: 'short' });
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('on');
+  clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2600);
+}
+
+/* ================= Network ================= */
+function netState() {
+  if (!navigator.onLine) return 'offline';
+  const c = navigator.connection;
+  if (c && c.type) {
+    if (c.type === 'wifi' || c.type === 'ethernet') return 'wifi';
+    if (c.type === 'none') return 'offline';
+    if (c.type === 'cellular' || c.type === 'bluetooth' || c.type === 'wimax') return 'cellular';
+  }
+  return 'online';
+}
+const NET_LABEL = { offline: 'Fără internet', wifi: 'Wi‑Fi', cellular: 'Date mobile', online: 'Online' };
+
+/* ================= Status bar ================= */
+let stAction = null;
+function updateStatus() {
+  const failed = entries.filter((e) => e.status === 'error').length;
+  const waiting = waitingEntries().length;
+  const n = netState();
+  let tone, big, small, label = '';
+  stAction = null;
+  if (syncing) { tone = 'sync'; big = 'Se încarcă…'; small = `Mai sunt ${fise(waiting)}.`; }
+  else if (!waiting) {
+    tone = entries.length ? 'ok' : 'idle';
+    big = entries.length ? 'Totul e încărcat' : 'Gata de măsurat';
+    small = entries.length ? 'Fișele sunt în Google Drive.' : 'Funcționează și fără internet.';
+  } else {
+    tone = 'wait'; big = `${fise(waiting)} în așteptare`;
+    if (!settings.clientId) { small = 'Conectează Google Drive.'; label = 'Configurează'; stAction = () => show('settings'); }
+    else if (n === 'offline') small = settings.wifiOnly ? 'Se încarcă pe Wi‑Fi.' : 'Se încarcă când ai internet.';
+    else if (!hasToken()) { small = 'Conectează-te la Google.'; label = 'Conectare'; stAction = signIn; }
+    else if (settings.wifiOnly && n === 'cellular') { small = 'Se încarcă pe Wi‑Fi.'; label = 'Încarcă acum'; stAction = () => trySync(true); }
+    else if (failed) { tone = 'err'; small = `${fise(failed)} nu s-au încărcat.`; label = 'Reîncearcă'; stAction = () => trySync(true); }
+    else { small = 'Se încarcă imediat.'; label = 'Încarcă acum'; stAction = () => trySync(true); }
+  }
+  $('#status').dataset.tone = tone;
+  $('#stBig').textContent = big; $('#stSmall').textContent = small; $('#stNet').textContent = NET_LABEL[n];
+  const b = $('#stBtn'); b.hidden = !stAction || syncing; b.textContent = label;
+  $('#tab-saved').textContent = waiting ? `Salvate (${waiting})` : 'Salvate';
+}
+$('#stBtn').addEventListener('click', () => stAction && stAction());
+
+/* ================= Views ================= */
+function show(view) {
+  for (const v of ['write', 'saved', 'settings']) {
+    $('#view-' + v).hidden = v !== view;
+    $('#tab-' + v).setAttribute('aria-selected', v === view);
+  }
+  if (view === 'saved') renderList();
+  if (view === 'settings') renderSettings();
+  window.scrollTo(0, 0);
+}
+for (const v of ['write', 'saved', 'settings']) $('#tab-' + v).addEventListener('click', () => show(v));
+
+/* ================= Measuring ================= */
+function segButtons(box, options, value, onPick) {
+  box.innerHTML = '';
+  for (const o of options) {
+    box.append(el('button', { type: 'button', 'aria-pressed': String(o.value === value), disabled: !!o.disabled,
+      onclick: () => onPick(o.value) }, o.swatch ? el('span', { class: 'sw', style: 'background:' + o.swatch }) : null, o.label,
+      o.note ? el('small', {}, o.note) : null));
+  }
+}
+
+function fixCuloare() {
+  const c = culoriFor(item);
+  if (!c) item.culoare = null;
+  else if (c.length === 1) item.culoare = c[0];
+  else if (!c.includes(item.culoare)) item.culoare = null;
+}
+
+function renderItemForm() {
+  const isR = item.produs === 'rulou', p = PRODUSE[item.produs];
+  const pick = (key) => (v) => { item[key] = v; if (key === 'material') fixCuloare(); renderItemForm(); saveDraft(); };
+  segButtons($('#segProdus'), Object.entries(PRODUSE).map(([k, x]) => ({ value: k, label: x.nume })), item.produs, (v) => {
+    if (v === item.produs) return;
+    item.produs = v; item.culoare = null; fixCuloare(); renderItemForm(); saveDraft();
+  });
+  $('#boxMaterial').hidden = $('#boxActionare').hidden = !isR;
+  $('#boxModel').hidden = $('#boxDimTip').hidden = isR;
+  if (isR) {
+    segButtons($('#segMaterial'), Object.entries(p.materiale).map(([k, m]) => ({ value: k, label: m.nume })), item.material, pick('material'));
+    segButtons($('#segActionare'), ACTIONARI.map((a) => ({ value: a, label: a })), item.actionare, pick('actionare'));
+  } else {
+    segButtons($('#segModel'), Object.entries(p.modele).map(([k, m]) => ({ value: k, label: m })), item.model, pick('model'));
+    segButtons($('#segDimTip'), DIM_TIP.map((d) => ({ value: d, label: d })), item.dimTip, pick('dimTip'));
+  }
+  const box = $('#culoareBox'); box.innerHTML = '';
+  const culori = culoriFor(item);
+  if (!culori) box.append(el('div', { class: 'locked' }, 'Alege întâi materialul.'));
+  else if (culori.length === 1) {
+    box.append(el('div', { class: 'locked' }, el('span', { class: 'sw', style: 'background:' + CULOARE_SW[culori[0]] }),
+      el('b', {}, culori[0]), `${p.materiale[item.material].nume} este doar ${culori[0].toLowerCase()}.`));
+  } else {
+    const seg = el('div', { class: 'seg' }); box.append(seg);
+    segButtons(seg, culori.map((c) => ({ value: c, label: c, swatch: CULOARE_SW[c] })), item.culoare, pick('culoare'));
+  }
+  $('#latime').value = item.latime; $('#inaltime').value = item.inaltime;
+  const editing = item.editIndex != null;
+  $('#itemTitle').textContent = editing ? `Modifici poziția ${item.editIndex + 1}` : `Poziția ${sheet.items.length + 1}`;
+  $('#addItem').textContent = editing ? 'Salvează poziția' : 'Adaugă poziția';
+  $('#cancelItem').hidden = !editing;
+}
+
+function renderPositions() {
+  const box = $('#positions'); box.innerHTML = '';
+  $('#posTitle').textContent = sheet.items.length ? `Poziții (${sheet.items.length})` : 'Poziții';
+  if (!sheet.items.length) { box.append(el('p', { class: 'empty' }, 'Nicio poziție încă. Completează mai jos și apasă „Adaugă poziția”.')); return; }
+  sheet.items.forEach((it, i) => {
+    box.append(el('div', { class: 'pos', 'data-editing': String(item.editIndex === i) },
+      el('span', { class: 'n' }, `${i + 1}.`),
+      el('div', { class: 'body' },
+        el('div', { class: 'd' }, `${it.latime} × ${it.inaltime} mm`),
+        el('div', { class: 'm' }, el('span', { class: 'sw', style: 'background:' + CULOARE_SW[it.culoare] }),
+          `${numeProdus(it)}, ${it.culoare.toLowerCase()}, ${detalii(it)}`),
+        el('div', { class: 'acts' },
+          el('button', { class: 'btn small', onclick: () => editItem(i) }, 'Modifică'),
+          el('button', { class: 'btn small danger', 'aria-label': `Șterge poziția ${i + 1}`, onclick: () => removeItem(i) }, 'Șterge')))));
+  });
+}
+
+function renderSheet() {
+  $('#cNume').value = sheet.client.nume; $('#cTel').value = sheet.client.telefon; $('#cAdresa').value = sheet.client.adresa;
+  $('#obs').value = sheet.obs;
+  $('#editingNote').hidden = !sheet.id;
+  $('#saveSheet').textContent = sheet.id ? 'Salvează modificările' : 'Salvează fișa';
+  $('#resetSheet').textContent = sheet.id ? 'Renunță' : 'Fișă nouă';
+  renderPositions(); renderItemForm();
+}
+
+const digits = (v) => v.replace(/\D/g, '').slice(0, 5);
+for (const id of ['latime', 'inaltime']) {
+  $('#' + id).addEventListener('input', (ev) => { ev.target.value = digits(ev.target.value); item[id] = ev.target.value; saveDraft(); });
+}
+$('#latime').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); $('#inaltime').focus(); } });
+$('#inaltime').addEventListener('keydown', (ev) => { if (ev.key === 'Enter') { ev.preventDefault(); ev.target.blur(); } });
+$('#cNume').addEventListener('input', (ev) => { sheet.client.nume = ev.target.value; saveDraft(); });
+$('#cTel').addEventListener('input', (ev) => { sheet.client.telefon = ev.target.value; saveDraft(); });
+$('#cAdresa').addEventListener('input', (ev) => { sheet.client.adresa = ev.target.value; saveDraft(); });
+$('#obs').addEventListener('input', (ev) => { sheet.obs = ev.target.value; saveDraft(); });
+
+$('#addItem').addEventListener('click', () => {
+  const l = parseInt(item.latime, 10), h = parseInt(item.inaltime, 10);
+  const isR = item.produs === 'rulou';
+  if (isR && !item.material) return toast('Alege materialul');
+  if (!isR && !item.model) return toast('Alege modelul');
+  if (!item.culoare) return toast('Alege culoarea');
+  if (!isR && !item.dimTip) return toast('Alege dacă dimensiunea e interior sau exterior');
+  if (!(l > 0)) { $('#latime').focus(); return toast('Scrie lățimea'); }
+  if (!(h > 0)) { $('#inaltime').focus(); return toast('Scrie înălțimea'); }
+  if (isR && !item.actionare) return toast('Alege acționarea: stânga sau dreapta');
+  const saved = isR
+    ? { produs: 'rulou', material: item.material, culoare: item.culoare, latime: l, inaltime: h, actionare: item.actionare }
+    : { produs: 'plasa', model: item.model, culoare: item.culoare, dimTip: item.dimTip, latime: l, inaltime: h };
+  const editing = item.editIndex != null;
+  if (editing) sheet.items[item.editIndex] = saved; else sheet.items.push(saved);
+  item = newItem(saved); // keep material and color for the next window
+  renderPositions(); renderItemForm(); saveDraft();
+  toast(editing ? 'Poziția a fost modificată' : `Poziția ${sheet.items.length} a fost adăugată`);
+  if (!editing) $('#latime').focus();
+});
+function editItem(i) {
+  const it = sheet.items[i];
+  item = { ...newItem(item), ...it, latime: String(it.latime), inaltime: String(it.inaltime), editIndex: i };
+  renderPositions(); renderItemForm(); saveDraft();
+  $('#itemCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function removeItem(i) {
+  if (!confirm(`Ștergi poziția ${i + 1} (${describe(sheet.items[i])})?`)) return;
+  sheet.items.splice(i, 1);
+  if (item.editIndex === i) item = newItem(item); else if (item.editIndex > i) item.editIndex--;
+  renderPositions(); renderItemForm(); saveDraft();
+}
+$('#cancelItem').addEventListener('click', () => { item = newItem(item); renderPositions(); renderItemForm(); saveDraft(); });
+
+const itemHasInput = () => item.editIndex == null ? !!(item.latime || item.inaltime) : false;
+const sheetHasInput = () => !!(sheet.items.length || sheet.client.nume.trim() || sheet.client.telefon.trim() || sheet.client.adresa.trim() || sheet.obs.trim() || itemHasInput());
+
+$('#saveSheet').addEventListener('click', async () => {
+  if (!sheet.client.nume.trim()) { $('#cNume').focus(); return toast('Scrie numele clientului'); }
+  if (item.editIndex != null) return toast('Salvează sau renunță la poziția pe care o modifici');
+  if (itemHasInput() && !confirm('Ai o poziție completată care nu a fost adăugată. Salvezi fișa fără ea?')) return;
+  if (!sheet.items.length) return toast('Adaugă cel puțin o poziție');
+  const wasEditing = !!sheet.id;
+  const old = wasEditing ? entries.find((e) => e.id === sheet.id) : null;
+  const e = {
+    id: sheet.id || uid(), createdAt: old?.createdAt || Date.now(), updatedAt: Date.now(),
+    client: { nume: sheet.client.nume.trim(), telefon: sheet.client.telefon.trim(), adresa: sheet.client.adresa.trim() },
+    items: structuredClone(sheet.items), obs: sheet.obs.trim(), status: 'pending', error: null
+  };
+  await putEntry(e); entries = await allEntries();
+  sheet = newSheet(); item = newItem(); await kvSet('draft', null);
+  renderSheet(); window.scrollTo(0, 0);
+  toast(wasEditing ? 'Modificările au fost salvate' : 'Fișa a fost salvată pe telefon');
+  updateStatus(); trySync();
+});
+$('#resetSheet').addEventListener('click', async () => {
+  const msg = sheet.id ? 'Renunți la modificări?' : 'Începi o fișă nouă? Ce ai completat acum se pierde.';
+  if (sheetHasInput() && !confirm(msg)) return;
+  sheet = newSheet(); item = newItem(); await kvSet('draft', null); renderSheet(); window.scrollTo(0, 0);
+});
+
+/* ================= Saved list ================= */
+function renderList() {
+  const list = $('#list'); list.innerHTML = '';
+  $('#clearUploaded').hidden = !entries.some((e) => e.status === 'uploaded');
+  const sorted = [...entries].sort((a, b) => b.createdAt - a.createdAt);
+  if (!sorted.length) { list.append(el('p', { class: 'empty' }, 'Nicio fișă salvată. Fișele rămân aici până se încarcă în Google Drive.')); return; }
+  const BADGE = { pending: 'În așteptare', error: 'Neîncărcată', uploaded: 'Încărcată' };
+  for (const e of sorted) {
+    const actions = el('div', { class: 'row' });
+    if (e.status !== 'uploaded') actions.append(el('button', { class: 'btn small', onclick: () => {
+      if (sheetHasInput() && sheet.id !== e.id && !confirm('Fișa deschisă acum nu e salvată și se va pierde. Continui?')) return;
+      sheet = { id: e.id, createdAt: e.createdAt, client: { ...e.client }, items: structuredClone(e.items), obs: e.obs };
+      item = newItem(e.items[e.items.length - 1]); saveDraft(); show('write'); renderSheet();
+    } }, 'Editează'));
+    actions.append(el('button', { class: 'btn small danger', onclick: async () => {
+      const msg = e.status === 'uploaded' ? 'Ștergi fișa de pe telefon? Copia din Google Drive rămâne.' : 'Fișa nu a fost încărcată încă. O ștergi definitiv?';
+      if (!confirm(msg)) return;
+      await delEntry(e.id); entries = await allEntries(); renderList(); updateStatus();
+    } }, 'Șterge'));
+    const nPos = e.items.length === 1 ? '1 poziție' : (e.items.length % 100 >= 1 && e.items.length % 100 <= 19) ? `${e.items.length} poziții` : `${e.items.length} de poziții`;
+    list.append(el('details', { class: 'item', 'data-status': e.status },
+      el('summary', {}, el('div', { class: 't' }, el('b', {}, e.client.nume), el('small', {}, `${fmtDate(e.createdAt)}, ${nPos}`)),
+        el('span', { class: 'badge' }, BADGE[e.status])),
+      el('div', { class: 'inner' },
+        e.status === 'error' && e.error ? el('p', { class: 'errmsg' }, 'Google Drive a răspuns: ' + e.error) : null,
+        el('pre', {}, buildFile(e, 'txt').content),
+        e.status === 'uploaded' && e.fileName ? el('p', { class: 'hint', style: 'margin:0 0 10px' }, 'În Drive ca ' + e.fileName) : null,
+        actions)));
+  }
+}
+$('#clearUploaded').addEventListener('click', async () => {
+  const up = entries.filter((e) => e.status === 'uploaded');
+  if (!confirm(`Ștergi de pe telefon ${fise(up.length)} deja încărcate? Copiile din Google Drive rămân.`)) return;
+  for (const e of up) await delEntry(e.id);
+  entries = await allEntries(); renderList(); updateStatus();
+});
+
+/* ================= File content ================= */
+function buildFile(e, format = settings.format) {
+  const d = new Date(e.createdAt), p = (n) => String(n).padStart(2, '0');
+  const stamp = `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}-${p(d.getMinutes())}`;
+  const nume = e.client.nume.replace(/[\\/:*?"<>|]+/g, '').replace(/\s+/g, ' ').trim().slice(0, 60) || 'Client';
+  const base = `${stamp} ${nume}`;
+  const rows = e.items.map((it, i) => ({
+    nr: i + 1, produs: PRODUSE[it.produs].singular,
+    model: it.produs === 'plasa' ? PRODUSE.plasa.modele[it.model] : '',
+    material: it.produs === 'rulou' ? PRODUSE.rulou.materiale[it.material].nume : '',
+    culoare: it.culoare, latime: it.latime, inaltime: it.inaltime,
+    dimensiune: it.dimTip || '', actionare: it.actionare || ''
+  }));
+  if (format === 'json') {
+    return { name: base + '.json', mime: 'application/json', content: JSON.stringify({
+      client: e.client, data: d.toISOString(), modificat: new Date(e.updatedAt).toISOString(), unitate: 'mm', pozitii: rows, observatii: e.obs
+    }, null, 2) };
+  }
+  if (format === 'csv') {
+    const q = (v) => { const s = String(v ?? ''); return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+    const head = ['Client', 'Telefon', 'Adresă', 'Data', 'Nr', 'Produs', 'Model', 'Material', 'Culoare', 'Lățime (mm)', 'Înălțime (mm)', 'Dimensiune', 'Acționare', 'Observații'];
+    const lines = rows.map((r) => [e.client.nume, e.client.telefon, e.client.adresa, fmtDate(e.createdAt), r.nr, r.produs, r.model, r.material, r.culoare, r.latime, r.inaltime, r.dimensiune, r.actionare, r.nr === 1 ? e.obs : ''].map(q).join(';'));
+    return { name: base + '.csv', mime: 'text/csv', content: '\ufeff' + [head.join(';'), ...lines].join('\r\n') + '\r\n' };
+  }
+  let t = `FIȘĂ DE MĂSURĂTORI\n\nClient: ${e.client.nume}\n`;
+  if (e.client.telefon) t += `Telefon: ${e.client.telefon}\n`;
+  if (e.client.adresa) t += `Adresă: ${e.client.adresa}\n`;
+  t += `Data: ${fmtDate(e.createdAt)}\n\nPoziții (lățime × înălțime, în mm)\n`;
+  t += e.items.map((it, i) => `${i + 1}. ${describe(it)}`).join('\n') + '\n';
+  if (e.obs) t += `\nObservații: ${e.obs}\n`;
+  return { name: base + '.txt', mime: 'text/plain', content: t };
+}
+
+/* ================= Settings ================= */
+function renderSettings() {
+  $('#clientId').value = settings.clientId; $('#folderPath').value = settings.folderPath;
+  $('#wifiOnly').checked = settings.wifiOnly; $('#format').value = settings.format;
+  $('#acctText').textContent = !settings.clientId
+    ? 'Lipește Client ID-ul din Google Cloud, apoi conectează-te.'
+    : hasToken() ? 'Conectat. Conectarea ține aproximativ o oră; după aceea, aplicația îți cere o singură apăsare când are ce încărca.'
+    : settings.signedInOnce ? 'Deconectat momentan. Conectează-te când ai internet ca să încarci.' : 'Nu ești conectat încă.';
+  $('#signOutBtn').hidden = !hasToken();
+}
+$('#clientId').addEventListener('change', (ev) => { settings.clientId = ev.target.value.trim(); tokenClient = null; clearToken(); saveSettings(); prepareGoogle(); renderSettings(); updateStatus(); });
+$('#folderPath').addEventListener('change', (ev) => { settings.folderPath = ev.target.value.split('/').map((s) => s.trim()).filter(Boolean).join('/'); ev.target.value = settings.folderPath; saveSettings(); });
+$('#wifiOnly').addEventListener('change', (ev) => { settings.wifiOnly = ev.target.checked; saveSettings(); updateStatus(); trySync(); });
+$('#format').addEventListener('change', (ev) => { settings.format = ev.target.value; saveSettings(); });
+$('#backupBtn').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify({ exportat: new Date().toISOString(), fise: entries }, null, 2)], { type: 'application/json' });
+  const d = new Date().toISOString().slice(0, 10);
+  const a = el('a', { href: URL.createObjectURL(blob), download: `masuratori-copie-${d}.json` });
+  document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+});
+
+/* ================= Google sign-in ================= */
+function loadGis() {
+  if (window.google?.accounts?.oauth2) return Promise.resolve();
+  if (!gisPromise) gisPromise = new Promise((res, rej) => {
+    const s = el('script', { src: 'https://accounts.google.com/gsi/client', async: true });
+    s.onload = () => res();
+    s.onerror = () => { gisPromise = null; s.remove(); rej(new Error('Nu s-a putut încărca conectarea Google. Verifică internetul.')); };
+    document.head.append(s);
+  });
+  return gisPromise;
+}
+function initTokenClient() {
+  if (!settings.clientId || !window.google?.accounts?.oauth2) return;
+  tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: settings.clientId,
+    scope: 'https://www.googleapis.com/auth/drive.file',
+    callback: async (r) => {
+      if (r.error) return toast('Conectarea nu s-a terminat: ' + r.error);
+      accessToken = r.access_token; tokenExpiry = Date.now() + (Number(r.expires_in) - 120) * 1000;
+      await kvSet('token', { accessToken, tokenExpiry });
+      settings.signedInOnce = true; await saveSettings();
+      toast('Conectat la Google');
+      if (!$('#view-settings').hidden) renderSettings();
+      updateStatus(); trySync(true);
+    },
+    error_callback: (err) => toast(err.type === 'popup_closed' ? 'Conectarea a fost închisă' : 'Conectarea nu s-a terminat: ' + err.type)
+  });
+}
+async function prepareGoogle() {
+  if (!settings.clientId || netState() === 'offline' || tokenClient) return;
+  try { await loadGis(); initTokenClient(); } catch {}
+}
+async function signIn() {
+  if (!settings.clientId) { toast('Lipește întâi Client ID-ul Google'); show('settings'); $('#clientId').focus(); return; }
+  if (netState() === 'offline') return toast('Ai nevoie de internet ca să te conectezi');
+  if (!tokenClient) { toast('Se încarcă conectarea Google…'); try { await loadGis(); initTokenClient(); } catch (e) { return toast(e.message); } }
+  try { tokenClient.requestAccessToken({ prompt: settings.signedInOnce ? '' : 'consent' }); }
+  catch { toast('Conectarea nu a pornit. Verifică Client ID-ul.'); }
+}
+$('#signInBtn').addEventListener('click', signIn);
+$('#signOutBtn').addEventListener('click', () => {
+  if (accessToken && window.google?.accounts?.oauth2) google.accounts.oauth2.revoke(accessToken, () => {});
+  clearToken(); renderSettings(); updateStatus(); toast('Deconectat');
+});
+function clearToken() { accessToken = null; tokenExpiry = 0; kvSet('token', null); }
+
+/* ================= Google Drive ================= */
+async function drive(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { ...(opts.headers || {}), Authorization: 'Bearer ' + accessToken } });
+  if (!r.ok) {
+    let msg = 'Eroare ' + r.status;
+    try { const j = await r.json(); msg = j.error?.message || msg; } catch {}
+    const err = new Error(msg); err.status = r.status; throw err;
+  }
+  return r.json();
+}
+const API = 'https://www.googleapis.com/drive/v3/files';
+const FOLDER = 'application/vnd.google-apps.folder';
+async function ensureFolder(path) {
+  if (!path) return null;
+  const cached = settings.folderCache[path];
+  if (cached) {
+    try { const f = await drive(`${API}/${cached}?fields=id,trashed`); if (!f.trashed) return cached; }
+    catch (e) { if (e.status === 401) throw e; }
+  }
+  let parent = 'root';
+  for (const part of path.split('/')) {
+    const name = part.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    const q = `name='${name}' and mimeType='${FOLDER}' and '${parent}' in parents and trashed=false`;
+    const found = await drive(`${API}?q=${encodeURIComponent(q)}&fields=files(id)&pageSize=1`);
+    parent = found.files[0]?.id || (await drive(API + '?fields=id', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: part, mimeType: FOLDER, parents: [parent] })
+    })).id;
+  }
+  settings.folderCache[path] = parent; await saveSettings();
+  return parent;
+}
+async function uploadEntry(e, folderId) {
+  const f = buildFile(e);
+  const meta = { name: f.name, mimeType: f.mime };
+  if (folderId) meta.parents = [folderId];
+  const b = 'masuratori' + Math.random().toString(36).slice(2);
+  const body = `--${b}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(meta)}\r\n` +
+    `--${b}\r\nContent-Type: ${f.mime}; charset=UTF-8\r\n\r\n${f.content}\r\n--${b}--`;
+  const res = await drive('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name', {
+    method: 'POST', headers: { 'Content-Type': 'multipart/related; boundary=' + b }, body
+  });
+  e.driveId = res.id; e.fileName = res.name;
+}
+async function trySync(manual = false) {
+  if (syncing) return;
+  const pending = waitingEntries();
+  if (!pending.length) return updateStatus();
+  const n = netState();
+  if (n === 'offline') { if (manual) toast('Nu ai internet acum'); return updateStatus(); }
+  if (!manual && settings.wifiOnly && n === 'cellular') return updateStatus();
+  if (!settings.clientId) { if (manual) show('settings'); return updateStatus(); }
+  if (!hasToken()) { if (manual) signIn(); return updateStatus(); }
+  syncing = true; updateStatus();
+  let done = 0;
+  try {
+    const folderId = await ensureFolder(settings.folderPath);
+    for (const e of pending) {
+      try { await uploadEntry(e, folderId); e.status = 'uploaded'; e.uploadedAt = Date.now(); e.error = null; done++; }
+      catch (err) {
+        if (err.status === 401) { clearToken(); break; }
+        if (err instanceof TypeError) break;
+        e.status = 'error'; e.error = err.message;
+      }
+      await putEntry(e); updateStatus();
+    }
+  } catch (err) {
+    if (err.status === 401) clearToken();
+    else if (!(err instanceof TypeError)) toast('Încărcarea a eșuat: ' + err.message);
+  } finally {
+    syncing = false; entries = await allEntries(); updateStatus();
+    if (!$('#view-saved').hidden) renderList();
+    if (done) toast(done === 1 ? '1 fișă încărcată' : `${fise(done)} încărcate`);
+  }
+}
+
+/* ================= Start ================= */
+(async function start() {
+  try {
+    const s = await kvGet('settings'); if (s) settings = { ...structuredClone(DEFAULTS), ...s };
+    const t = await kvGet('token'); if (t && t.tokenExpiry > Date.now()) ({ accessToken, tokenExpiry } = t);
+    const d = await kvGet('draft'); if (d) { sheet = d.sheet; item = { ...newItem(), ...d.item }; }
+    entries = await allEntries();
+  } catch { toast('Nu s-a putut deschide memoria telefonului'); }
+  renderSheet(); updateStatus();
+  navigator.storage?.persist?.();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  const onNet = () => { updateStatus(); prepareGoogle(); trySync(); };
+  addEventListener('online', onNet); addEventListener('offline', onNet);
+  navigator.connection?.addEventListener?.('change', onNet);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) onNet(); });
+  setInterval(onNet, 60000);
+  prepareGoogle(); trySync();
+})();
+</script>
+</body>
+</html>

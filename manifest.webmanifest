@@ -1,0 +1,16 @@
+{
+  "name": "Măsurători",
+  "short_name": "Măsurători",
+  "description": "Măsurători pentru rolete și plase, și fără internet. Se încarcă în Google Drive pe Wi-Fi.",
+  "lang": "ro",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#E9EDEA",
+  "theme_color": "#1D2830",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
